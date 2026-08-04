@@ -12,10 +12,21 @@ required. It wraps the same AJAX endpoints the SoC website itself uses.
 | `list_subject_areas` | All subject areas offering courses in a term, with exact codes (`COM SCI`, `EC ENGR`, …)                                                                                                             |
 | `search_courses`     | Overview of every course a subject offers in a term — catalog number + title — optionally filtered by availability (`open`, `waitlist`, `open_or_waitlist`, `closed`, `cancelled`, `any`)            |
 | `get_course_details` | Full detail for one course: each lecture/seminar section's status, enrolled/capacity/spots left, waitlist counts, days, times, locations, units, instructors, plus nested discussion/lab subsections |
+| `parse_degree_audit` | Deterministically parse a locally saved UCLA Degree Audit (DARS) HTML file: overall status, admit/catalog info, unit & GPA breakdown, and every requirement/subrequirement with applied courses, remaining needs, and SELECT FROM lists |
 
 Inputs are forgiving: terms accept `26F` or `Fall 2026`; subjects accept codes or names
 (`COM SCI` or `Computer Science`); catalog numbers accept `31`, `M151B`, `cs 31`-style input.
 Ambiguous or unknown inputs return actionable error messages listing valid options.
+
+### Degree audit parsing
+
+`parse_degree_audit` works offline on a file you save yourself: open your audit at
+[dars.ucla.edu](https://dars.ucla.edu) (Audit Results tab), use the browser's
+**Save page as** (complete webpage or single HTML file), then pass the absolute file
+path to the tool. Parsing is fully deterministic — it walks the audit's stable DARS
+markup (`.requirement`, `.subrequirement`, `.takenCourse`, `.subreqNeeds`, …), no
+network access and nothing is uploaded. `status_filter: "unfulfilled"` narrows the
+output to what's still missing.
 
 ## Setup
 

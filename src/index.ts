@@ -4,9 +4,11 @@
  * Transport: stdio. All tools are read-only queries against public data.
  */
 
+import { readFile } from "node:fs/promises";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { parseDegreeAudit } from "./audit.js";
 import {
   Availability,
   getCourseSections,
@@ -41,7 +43,9 @@ const server = new McpServer(
       "list_terms -> list_subject_areas (find the subject code) -> search_courses " +
       "(overview of a subject's courses, optionally filtered by seat availability) -> " +
       "get_course_details (per-section seats, waitlist, times, locations, instructors, " +
-      "and discussion/lab subsections for one course). All data is public; no auth needed.",
+      "and discussion/lab subsections for one course). All data is public; no auth needed. " +
+      "parse_degree_audit is different: it reads a locally saved UCLA DARS degree audit HTML " +
+      "file and returns requirement completion status, applied courses, and remaining needs.",
   }
 );
 
@@ -201,6 +205,71 @@ server.registerTool(
         matched_courses: matches.length,
         shown: results.length,
         courses: results,
+      });
+    } catch (err) {
+      return errorResult(err);
+    }
+  }
+);
+
+server.registerTool(
+  "parse_degree_audit",
+  {
+    title: "Parse a saved UCLA degree audit (DARS)",
+    description:
+      "Deterministically parse a UCLA Degree Audit Report (DARS) that was saved from " +
+      "dars.ucla.edu as an HTML file ('Audit Results' tab -> browser 'Save page as'). " +
+      "Returns the overall completion status, student/admit info, unit & GPA breakdown " +
+      "(completed / in-progress / unfulfilled units per GPA category), and every " +
+      "requirement with its subrequirements: status (complete / unfulfilled / in_progress / " +
+      "informational), courses applied (term, course, units, grade), what is still NEEDED " +
+      "(course/unit counts), and SELECT FROM / NOT FROM course lists. " +
+      "Use status_filter to narrow to just unfulfilled or in-progress requirements.",
+    inputSchema: {
+      file_path: z
+        .string()
+        .describe(
+          "Absolute path to the saved DARS audit HTML file, e.g. " +
+            "\"C:\\\\Users\\\\me\\\\Documents\\\\My Audit - Audit Results Tab.html\"."
+        ),
+      status_filter: z
+        .enum(["all", "unfulfilled", "in_progress", "complete"])
+        .default("all")
+        .describe(
+          "Only include requirements with this status ('all' = everything, including " +
+            "informational blocks). Header and unit/GPA summary are always returned."
+        ),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ file_path, status_filter }) => {
+    try {
+      let html: string;
+      try {
+        html = await readFile(file_path, "utf8");
+      } catch (err) {
+        return errorResult(
+          new Error(
+            `Could not read "${file_path}": ${err instanceof Error ? err.message : String(err)}. ` +
+              "Pass the absolute path to a saved DARS audit HTML file."
+          )
+        );
+      }
+      const audit = parseDegreeAudit(html);
+      const requirements =
+        status_filter === "all"
+          ? audit.requirements
+          : audit.requirements.filter((r) => r.status === status_filter);
+      return jsonResult({
+        source_file: file_path,
+        status_filter,
+        overall_status: audit.overall_status,
+        student_info: audit.student_info,
+        degree_programs: audit.degree_programs.length ? audit.degree_programs : undefined,
+        unit_gpa_summary: audit.unit_gpa_summary,
+        requirement_count: audit.requirements.length,
+        requirements_shown: requirements.length,
+        requirements,
       });
     } catch (err) {
       return errorResult(err);
