@@ -1,0 +1,31 @@
+{
+  "name": "ucla-soc-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for the UCLA Schedule of Classes (sa.ucla.edu/ro/public/soc)",
+  "type": "module",
+  "license": "Unlicense",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aaditsingh07/ucla-soc-mcp.git"
+  },
+  "bin": {
+    "ucla-soc-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "npm run build && node scripts/smoke-test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.11.0",
+    "cheerio": "1.0.0-rc.12",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "typescript": "^5.5.0"
+  }
+}
