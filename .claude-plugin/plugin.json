@@ -1,0 +1,20 @@
+{
+  "name": "ucla-soc",
+  "displayName": "UCLA Schedule Planner",
+  "version": "1.1.0",
+  "description": "UCLA Schedule of Classes tools plus a guided schedule-planning skill: live course and section data, DARS degree-audit parsing, final-exam and prerequisite checks, and campus walking-distance estimates.",
+  "author": {
+    "name": "Aadit Singh",
+    "url": "https://github.com/aaditsingh07"
+  },
+  "repository": "https://github.com/aaditsingh07/ucla-soc-mcp",
+  "license": "Unlicense",
+  "keywords": [
+    "ucla",
+    "schedule-of-classes",
+    "course-planning",
+    "registration",
+    "degree-audit",
+    "dars"
+  ]
+}

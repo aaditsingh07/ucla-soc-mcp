@@ -84,10 +84,7 @@ export interface Section {
   subsections?: Section[];
 }
 
-async function socFetch(path: string, params: Record<string, string>): Promise<string> {
-  const url = new URL(BASE + path);
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-
+async function socFetchUrl(url: URL): Promise<string> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     const controller = new AbortController();
@@ -100,7 +97,9 @@ async function socFetch(path: string, params: Record<string, string>): Promise<s
         },
         signal: controller.signal,
       });
-      if (!res.ok) throw new Error(`UCLA SoC returned HTTP ${res.status} for ${path}`);
+      if (!res.ok) {
+        throw new Error(`UCLA SoC returned HTTP ${res.status} for ${url.pathname}`);
+      }
       return await res.text();
     } catch (err) {
       lastError = err;
@@ -108,7 +107,13 @@ async function socFetch(path: string, params: Record<string, string>): Promise<s
       clearTimeout(timer);
     }
   }
-  throw new Error(`Failed to reach UCLA SoC (${path}): ${String(lastError)}`);
+  throw new Error(`Failed to reach UCLA SoC (${url.pathname}): ${String(lastError)}`);
+}
+
+async function socFetch(path: string, params: Record<string, string>): Promise<string> {
+  const url = new URL(BASE + path);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  return socFetchUrl(url);
 }
 
 function decodeEntities(s: string): string {
@@ -435,6 +440,213 @@ export async function getCourseSections(
   return sections;
 }
 
+// ---------------------------------------------------- class detail page
+
+export interface FinalExam {
+  date: string;
+  day: string;
+  time: string;
+  location: string;
+}
+
+export interface Requisite {
+  course: string;
+  course_title: string | null;
+  connector: string | null;
+  minimum_grade: string | null;
+  prerequisite: boolean;
+  corequisite: boolean;
+  type: string;
+}
+
+interface ClassDetailPage {
+  final_exam: FinalExam | null;
+  final_exam_note: string | null;
+  requisites: Requisite[];
+  requisites_text: string | null;
+  grading_type: string | null;
+  enrollment_restrictions: string | null;
+  impacted: string | null;
+  individual_studies: string | null;
+  level: string | null;
+  course_description: string | null;
+  class_description: string | null;
+  general_education: string | null;
+  class_notes: string | null;
+}
+
+export interface ClassDetail extends ClassDetailPage {
+  section: string;
+  class_id: string | null;
+  detail_url: string;
+  status: string;
+  days: string;
+  time: string;
+  location: string;
+  units: string;
+  instructor: string;
+}
+
+function blockText($el: cheerio.Cheerio<any>): string {
+  return $el
+    .text()
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .join("\n");
+}
+
+/** Treat the registrar's "---" placeholder as absent; keep line breaks. */
+function textOrNull(s: string): string | null {
+  const t = s.trim();
+  return t.length === 0 || t === "---" ? null : t;
+}
+
+/** Same, for table cells where multi-line values read better on one line. */
+function orNull(s: string): string | null {
+  return textOrNull(s.replace(/\n/g, " "));
+}
+
+function parseRequisites($: cheerio.CheerioAPI): Requisite[] {
+  const requisites: Requisite[] = [];
+  $("#course_requisites tbody tr").each((_i, el) => {
+    const cells = $(el).find("td");
+    if (cells.length < 5) return;
+    const nameButton = cells.eq(0).find("button").first();
+    const raw = blockText(cells.eq(0)).replace(/\n/g, " ").trim();
+    const connector = raw.match(/\s(and|or)$/i);
+    const typeContent = cells.eq(4).find("button").first().attr("data-content") ?? "";
+    requisites.push({
+      course: connector ? raw.slice(0, raw.length - connector[0].length).trim() : raw,
+      course_title: orNull(nameButton.attr("data-content") ?? ""),
+      connector: connector ? connector[1].toLowerCase() : null,
+      minimum_grade: orNull(blockText(cells.eq(1))),
+      prerequisite: /yes/i.test(blockText(cells.eq(2))),
+      corequisite: /yes/i.test(blockText(cells.eq(3))),
+      type: /^enforced/i.test(typeContent)
+        ? "Enforced"
+        : /^warning/i.test(typeContent)
+          ? "Warning"
+          : "Unknown",
+    });
+  });
+  return requisites;
+}
+
+function summarizeRequisites(requisites: Requisite[]): string | null {
+  if (requisites.length === 0) return null;
+  const list = requisites
+    .map((r) => [r.course, r.connector].filter((p) => p).join(" "))
+    .join(" ");
+  const types = [...new Set(requisites.map((r) => r.type))];
+  return types.length === 1 && types[0] !== "Unknown" ? `${types[0]}: ${list}` : list;
+}
+
+function parseFinalExam($: cheerio.CheerioAPI): {
+  final_exam: FinalExam | null;
+  final_exam_note: string | null;
+} {
+  const cells = $("#final_exam_info tbody tr").first().find("td");
+  if (cells.length < 4) {
+    return { final_exam: null, final_exam_note: "No final exam information listed." };
+  }
+  const values = cells.map((_i, el) => blockText($(el)).replace(/\n/g, " ")).get();
+  const [date, day, time, location] = values;
+  // Courses without a scheduled final show "None listed" plus an explanation.
+  if (orNull(date) === null || /^none listed$/i.test(date.trim())) {
+    const note = values.map((v) => v.trim()).filter((v) => v && v !== "---").join(" - ");
+    return { final_exam: null, final_exam_note: note || "None listed" };
+  }
+  return { final_exam: { date, day, time, location }, final_exam_note: null };
+}
+
+/** The "Course Description" / "Class Notes" / ... stack at the bottom of the page. */
+function parseDetailSections($: cheerio.CheerioAPI): Map<string, string> {
+  const blocks = new Map<string, string>();
+  let title: string | null = null;
+  let subtitle: string | null = null;
+  // Iterate every child, not just <p>: HTML parsers close the <p> that wraps
+  // the class notes as soon as its <ul> starts, so the list ends up a sibling.
+  $("#section").children().each((_i, el) => {
+    const $p = $(el);
+    const text = blockText($p);
+    if ($p.hasClass("class_detail_title")) {
+      if ($p.hasClass("GE_subsection_title")) {
+        subtitle = text;
+      } else {
+        title = text;
+        subtitle = null;
+        if (!blocks.has(title)) blocks.set(title, "");
+      }
+      return;
+    }
+    if (!title || text.length === 0) return;
+    const line = subtitle ? `${subtitle}: ${text.replace(/\n/g, " ")}` : text;
+    const existing = blocks.get(title) ?? "";
+    blocks.set(title, existing.length > 0 ? `${existing}\n${line}` : line);
+  });
+  return blocks;
+}
+
+function parseClassDetailPage(html: string): ClassDetailPage {
+  // Keep line breaks inside cells and list items, and drop the <template>
+  // wrapper the SoC page shell puts around the class detail markup.
+  const prepared = html
+    .replace(/<\/?template[^>]*>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(li|p)>/gi, "\n$&");
+  const $ = cheerio.load(prepared);
+
+  const enrollment = $("#enrollment_info tbody tr").first().find("td");
+  const blocks = parseDetailSections($);
+  const requisites = parseRequisites($);
+  const description = blocks.get("Course Description") ?? "";
+  const classDescription = blocks.get("Class Description") ?? "";
+
+  return {
+    ...parseFinalExam($),
+    requisites,
+    requisites_text: summarizeRequisites(requisites),
+    grading_type: orNull(blockText(enrollment.eq(0))),
+    enrollment_restrictions: orNull(blockText(enrollment.eq(1))),
+    impacted: orNull(blockText(enrollment.eq(2))),
+    individual_studies: orNull(blockText(enrollment.eq(3))),
+    level: orNull(blockText(enrollment.eq(4))),
+    course_description: orNull(description),
+    class_description: /^none$/i.test(classDescription.trim())
+      ? null
+      : textOrNull(classDescription),
+    general_education: orNull(blocks.get("General Education (GE)") ?? ""),
+    class_notes: textOrNull(blocks.get("Class Notes") ?? ""),
+  };
+}
+
+/**
+ * Final exam, enforced requisites, grading basis and class notes for one
+ * section, from the public ClassDetail page its section link points at:
+ * /ro/Public/SOC/Results/ClassDetail?term_cd=&subj_area_cd=&crs_catlg_no=&class_id=&class_no=
+ */
+export async function getClassDetail(section: Section): Promise<ClassDetail> {
+  if (!section.detail_url) {
+    throw new Error(
+      `Section "${section.section}" has no class detail link in the Schedule of Classes.`
+    );
+  }
+  const html = await socFetchUrl(new URL(section.detail_url));
+  return {
+    section: section.section,
+    class_id: section.class_id,
+    detail_url: section.detail_url,
+    status: section.status,
+    days: section.days,
+    time: section.time,
+    location: section.location,
+    units: section.units,
+    instructor: section.instructor,
+    ...parseClassDetailPage(html),
+  };
+}
+
 // --------------------------------------------------- catalog number match
 
 /** Normalize "M151B", " m 151 b", "0031", "CS 31" style numbers for comparison. */
@@ -457,4 +669,19 @@ export function matchCourses(
   if (exact.length > 0) return exact;
   // Fall back to prefix match so "188" finds topic-split offerings like 188-1, 188-2.
   return courses.filter((c) => normalizeCatalog(c.catalog_number).startsWith(wanted));
+}
+
+/**
+ * Match "1", "Lec 1", "lec1", "1A" style input against section names.
+ * Top-level sections win; discussions/labs are only searched if none matched.
+ */
+export function matchSections(sections: Section[], input: string): Section[] {
+  const wanted = input.trim().toLowerCase().replace(/\s+/g, "");
+  const hit = (s: Section) => {
+    const name = s.section.toLowerCase().replace(/\s+/g, "");
+    return name === wanted || name.endsWith(wanted) || name.startsWith(wanted);
+  };
+  const top = sections.filter(hit);
+  if (top.length > 0) return top;
+  return sections.flatMap((s) => s.subsections ?? []).filter(hit);
 }

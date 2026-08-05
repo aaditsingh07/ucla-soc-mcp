@@ -1,0 +1,15 @@
+{
+  "name": "ucla-soc-mcp",
+  "owner": {
+    "name": "Aadit Singh",
+    "url": "https://github.com/aaditsingh07"
+  },
+  "description": "UCLA Schedule of Classes MCP server and schedule-planning skill",
+  "plugins": [
+    {
+      "name": "ucla-soc",
+      "source": "./",
+      "description": "UCLA Schedule of Classes tools plus a guided schedule-planning skill: live course and section data, DARS degree-audit parsing, final-exam and prerequisite checks, and campus walking-distance estimates."
+    }
+  ]
+}
