@@ -12,8 +12,9 @@
     "ucla-soc-mcp": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc && npm run bundle",
+    "build": "tsc && npm run bundle && npm run bundle:script",
     "bundle": "esbuild src/index.ts --bundle --platform=node --format=cjs --outfile=dist/bundle.cjs",
+    "bundle:script": "esbuild src/parse-degree-audit-cli.ts --bundle --platform=node --format=cjs --outfile=dist/parse-degree-audit.cjs",
     "start": "node dist/index.js",
     "test": "npm run build && node scripts/smoke-test.mjs"
   },

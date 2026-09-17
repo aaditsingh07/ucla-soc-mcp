@@ -22,7 +22,12 @@ from a fixed template.
 | `get_course_description` | UCLA General Catalog entry for a course (term-independent): title, units, grading basis, level, full catalog description, and the requisite sentences pulled out of it |
 | `estimate_walk_time` | Offline walking-time estimate between two classroom buildings, from raw SoC location strings (`Boelter Hall 3400`) or bare building names |
 | `list_buildings`     | Every UCLA building `estimate_walk_time` knows, with the registrar's official abbreviation, aliases, and approximate coordinates |
-| `parse_degree_audit` | Deterministically parse a locally saved UCLA Degree Audit (DARS) HTML file: overall status, admit/catalog info, unit & GPA breakdown, and every requirement/subrequirement with applied courses, remaining needs, and SELECT FROM lists |
+
+## Resources
+
+| Resource | What it does |
+| -------- | ------------- |
+| `ucla-soc://scripts/parse-degree-audit.cjs` | A self-contained Node.js script (dependencies bundled in) that deterministically parses a saved UCLA Degree Audit (DARS) HTML file. Save it and run `node parse-degree-audit.cjs <path-to-audit.html> [status_filter]` yourself — see [Degree audit parsing](#degree-audit-parsing) below. |
 
 Inputs are forgiving: terms accept `26F` or `Fall 2026`; subjects accept codes or names
 (`COM SCI` or `Computer Science`); catalog numbers accept `31`, `M151B`, `cs 31`-style input.
@@ -44,13 +49,23 @@ passing-period problem, not for navigation. `list_buildings` shows what it knows
 
 ### Degree audit parsing
 
-`parse_degree_audit` works offline on a file you save yourself: open your audit at
-[dars.ucla.edu](https://dars.ucla.edu) (Audit Results tab), use the browser's
-**Save page as** (complete webpage or single HTML file), then pass the absolute file
-path to the tool. Parsing is fully deterministic — it walks the audit's stable DARS
-markup (`.requirement`, `.subrequirement`, `.takenCourse`, `.subreqNeeds`, …), no
-network access and nothing is uploaded. `status_filter: "unfulfilled"` narrows the
-output to what's still missing.
+Degree audit parsing is a **resource**, not a tool: the saved DARS HTML lives wherever
+the caller has it (a local file, a dragged-in upload), not on this server, so the server
+hands over a script to run rather than accepting a file path as a tool argument.
+
+Open your audit at [dars.ucla.edu](https://dars.ucla.edu) (Audit Results tab), use the
+browser's **Save page as** (complete webpage or single HTML file), then read the
+`ucla-soc://scripts/parse-degree-audit.cjs` resource, save its contents to a file, and run:
+
+```sh
+node parse-degree-audit.cjs <path-to-audit.html> [status_filter]
+```
+
+`status_filter` is one of `all` (default), `unfulfilled`, `in_progress`, `complete`.
+The script bundles its own dependencies (no `npm install` needed) and prints the parsed
+audit as JSON to stdout. Parsing is fully deterministic — it walks the audit's stable
+DARS markup (`.requirement`, `.subrequirement`, `.takenCourse`, `.subreqNeeds`, …); no
+network access and nothing is uploaded anywhere.
 
 ## Setup
 

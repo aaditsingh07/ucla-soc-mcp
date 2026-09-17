@@ -7484,6 +7484,8 @@ var require_boolbase = __commonJS({
 
 // src/index.ts
 var import_promises = require("node:fs/promises");
+var import_node_path = require("node:path");
+var import_node_url = require("node:url");
 
 // node_modules/zod/v3/external.js
 var external_exports = {};
@@ -21720,6 +21722,195 @@ var StdioServerTransport = class {
   }
 };
 
+// src/buildings.ts
+var WALK_SPEED_M_PER_MIN = 80;
+var PATH_FACTOR = 1.4;
+var BUILDINGS = [
+  // ------------------------------------------------- North Campus / Royce quad
+  { name: "Royce Hall", abbreviation: "ROYCE", aliases: [], lat: 34.0729, lon: -118.4422 },
+  { name: "Powell Library Building", abbreviation: "POWELL", aliases: ["Powell Library", "Powell"], lat: 34.0716, lon: -118.4422 },
+  { name: "Haines Hall", abbreviation: "HAINES", aliases: [], lat: 34.0729, lon: -118.4413 },
+  { name: "Renee and David Kaplan Hall", abbreviation: "KAPLAN", aliases: ["Kaplan Hall", "Humanities Building", "Humanities"], lat: 34.0715, lon: -118.4413 },
+  { name: "Rolfe Hall", abbreviation: "ROLFE", aliases: [], lat: 34.0739, lon: -118.4421 },
+  { name: "Dodd Hall", abbreviation: "DODD", aliases: [], lat: 34.0728, lon: -118.4393 },
+  { name: "Bunche Hall", abbreviation: "BUNCHE", aliases: [], lat: 34.0743, lon: -118.4404 },
+  { name: "Public Affairs Building", abbreviation: "PUB AFF", aliases: ["Public Affairs", "Luskin School of Public Affairs", "Luskin"], lat: 34.0744, lon: -118.4392 },
+  { name: "Perloff Hall", abbreviation: "PERLOFF", aliases: [], lat: 34.0734, lon: -118.4402 },
+  { name: "Broad Art Center", abbreviation: "BROAD", aliases: ["Eli and Edythe Broad Art Center"], lat: 34.0759, lon: -118.441 },
+  { name: "Macgowan Hall", abbreviation: "MACGOWN", aliases: ["MacGowan Hall"], lat: 34.0759, lon: -118.4399 },
+  { name: "Macgowan Hall East", abbreviation: "MCGWN E", aliases: ["MacGowan East"], lat: 34.0761, lon: -118.4393 },
+  { name: "Melnitz Hall", abbreviation: "MELNITZ", aliases: ["James Bridges Theater"], lat: 34.0763, lon: -118.44 },
+  { name: "Schoenberg Music Building", abbreviation: "SMB", aliases: ["Schoenberg Hall", "Schoenberg"], lat: 34.0707, lon: -118.4402 },
+  { name: "Ostin Music Center", abbreviation: "OSTIN", aliases: ["Evelyn and Mo Ostin Music Center", "Ostin"], lat: 34.0704, lon: -118.4405 },
+  { name: "Kaufman Hall", abbreviation: "KAUFMAN", aliases: ["Glorya Kaufman Hall", "Dance Building"], lat: 34.0728, lon: -118.4441 },
+  { name: "Fowler Museum at UCLA", abbreviation: "FOWLER", aliases: ["Fowler Museum", "Fowler"], lat: 34.073, lon: -118.4432 },
+  { name: "Moore Hall", abbreviation: "MOORE", aliases: [], lat: 34.0704, lon: -118.4427 },
+  { name: "Franz Hall", abbreviation: "FRANZ", aliases: [], lat: 34.0696, lon: -118.4415 },
+  { name: "Pritzker Hall", abbreviation: "PRITZKER", aliases: ["Psychology Tower", "Psychology Building"], lat: 34.0696, lon: -118.4408 },
+  { name: "Murphy Hall", abbreviation: "MURPHY", aliases: ["Administration Building"], lat: 34.0716, lon: -118.4387 },
+  { name: "Law Building", abbreviation: "LAW", aliases: ["School of Law", "UCLA School of Law"], lat: 34.073, lon: -118.4386 },
+  { name: "Young Research Library", abbreviation: "YRL", aliases: ["Charles E. Young Research Library"], lat: 34.0749, lon: -118.4415 },
+  { name: "Graduate School of Education and Information Studies Building", abbreviation: "GSEIS", aliases: ["GSE&IS Building", "Education Building"], lat: 34.0751, lon: -118.4422 },
+  { name: "Lu Valle Commons", abbreviation: "LUVALLE", aliases: ["LuValle Commons"], lat: 34.0736, lon: -118.4392 },
+  { name: "Sculpture Garden", abbreviation: "SCULPT", aliases: ["Franklin D. Murphy Sculpture Garden"], lat: 34.075, lon: -118.4401 },
+  { name: "Portola Plaza Building", abbreviation: "PORTOLA", aliases: ["Institute for Pure and Applied Mathematics", "IPAM"], lat: 34.0703, lon: -118.4419 },
+  // ---------------------------------------------- South Campus / Court of Sciences
+  { name: "Boelter Hall", abbreviation: "BOELTER", aliases: ["Boelter"], lat: 34.0689, lon: -118.443 },
+  { name: "Mathematical Sciences", abbreviation: "MS", aliases: ["Math Sciences", "Mathematical Sciences Building", "Math Sci"], lat: 34.0695, lon: -118.4428 },
+  { name: "Engineering IV", abbreviation: "ENGR IV", aliases: ["Engineering 4"], lat: 34.0688, lon: -118.444 },
+  { name: "Engineering V", abbreviation: "ENGR V", aliases: ["Engineering 5"], lat: 34.0695, lon: -118.4438 },
+  { name: "Engineering VI", abbreviation: "ENGR VI", aliases: ["Engineering 6", "Mong Learning Center"], lat: 34.0695, lon: -118.4443 },
+  { name: "Knudsen Hall", abbreviation: "KNUDSEN", aliases: [], lat: 34.0706, lon: -118.4413 },
+  { name: "Kinsey Science Teaching Pavilion", abbreviation: "KNSY PV", aliases: ["Kinsey Teaching Pavilion", "Kinsey Pavilion", "Kinsey"], lat: 34.0702, lon: -118.4413 },
+  { name: "Physics and Astronomy Building", abbreviation: "PAB", aliases: ["Physics & Astronomy Building", "Physics and Astronomy"], lat: 34.0707, lon: -118.4416 },
+  { name: "Geology Building", abbreviation: "GEOLOGY", aliases: ["Geology"], lat: 34.0692, lon: -118.4412 },
+  { name: "Slichter Hall", abbreviation: "SLICHTR", aliases: [], lat: 34.0689, lon: -118.4408 },
+  { name: "Young Hall", abbreviation: "WGYOUNG", aliases: ["William G. Young Hall", "Young Hall CS"], lat: 34.0686, lon: -118.4413 },
+  { name: "Molecular Sciences Building", abbreviation: "MOL SCI", aliases: ["Molecular Sciences"], lat: 34.0682, lon: -118.4409 },
+  { name: "Boyer Hall", abbreviation: "BOYER", aliases: ["Paul D. Boyer Hall"], lat: 34.0681, lon: -118.4418 },
+  { name: "Life Sciences", abbreviation: "LS", aliases: ["Life Sciences Building"], lat: 34.0671, lon: -118.4425 },
+  { name: "Terasaki Life Sciences Building", abbreviation: "TERASKI", aliases: ["Terasaki Life Sciences", "Terasaki"], lat: 34.0672, lon: -118.4401 },
+  { name: "Hershey Hall", abbreviation: "HERSHEY", aliases: [], lat: 34.0669, lon: -118.4399 },
+  { name: "Botany Building", abbreviation: "BOTANY", aliases: ["La Kretz Botany Building", "Botany"], lat: 34.0668, lon: -118.4411 },
+  { name: "La Kretz Hall", abbreviation: "LAKRETZ", aliases: [], lat: 34.0676, lon: -118.4427 },
+  { name: "La Kretz Garden Pavillion", abbreviation: "LKGP", aliases: ["La Kretz Garden Pavilion"], lat: 34.0668, lon: -118.4415 },
+  { name: "Court of Sciences Student Center", abbreviation: null, aliases: ["Court of Sciences"], lat: 34.0682, lon: -118.4422 },
+  { name: "California NanoSystems Institute", abbreviation: "CNSI", aliases: ["California Nanosystems Institute"], lat: 34.0681, lon: -118.443 },
+  // ------------------------------------------------------------ Health Sciences
+  { name: "Center for the Health Sciences", abbreviation: "HLTHSCI", aliases: ["Center for Health Sciences", "CHS"], lat: 34.0662, lon: -118.4431 },
+  { name: "Factor Health Sciences Building", abbreviation: "FACTOR", aliases: ["Factor Building", "Factor"], lat: 34.0668, lon: -118.442 },
+  { name: "Gonda (Goldschmied) Neuroscience and Genetics Research Center", abbreviation: "GONDA", aliases: ["Gonda Neuroscience and Genetics Research Center", "Gonda Center", "Gonda"], lat: 34.0674, lon: -118.4447 },
+  { name: "Neuroscience Research Building", abbreviation: "NEUROSC", aliases: [], lat: 34.0674, lon: -118.4433 },
+  { name: "MacDonald Medical Research Laboratories", abbreviation: "MACDNLD", aliases: ["MacDonald Medical Research Laboratory"], lat: 34.0674, lon: -118.4441 },
+  { name: "Brain Research Institute", abbreviation: "BRI", aliases: [], lat: 34.0663, lon: -118.4443 },
+  { name: "Brain Mapping Center", abbreviation: "BMC", aliases: ["Ahmanson-Lovelace Brain Mapping Center"], lat: 34.0667, lon: -118.4444 },
+  { name: "Semel Institute for Neuroscience and Human Behavior", abbreviation: "SEMEL", aliases: ["Semel Institute"], lat: 34.0658, lon: -118.4445 },
+  { name: "Reed Neurological Research Center", abbreviation: "REED", aliases: ["Reed Neurological"], lat: 34.0662, lon: -118.4448 },
+  { name: "Rosenfeld Hall", abbreviation: null, aliases: [], lat: 34.0667, lon: -118.4448 },
+  { name: "Public Health, School of", abbreviation: "PUB HLT", aliases: ["School of Public Health", "Fielding School of Public Health"], lat: 34.0667, lon: -118.4436 },
+  { name: "Dentistry, School of", abbreviation: "DENT", aliases: ["School of Dentistry"], lat: 34.0664, lon: -118.442 },
+  { name: "Biomedical Sciences Research Building", abbreviation: "BIO SCI", aliases: ["BSRB"], lat: 34.0666, lon: -118.4446 },
+  { name: "Geffen Hall", abbreviation: "GEFFENHL", aliases: ["David Geffen Hall"], lat: 34.0645, lon: -118.4422 },
+  { name: "Wasserman Building", abbreviation: "WASSRMN", aliases: [], lat: 34.0653, lon: -118.4446 },
+  { name: "Ueberroth Building", abbreviation: "PVUB", aliases: ["Peter V. Ueberroth Building"], lat: 34.064, lon: -118.447 },
+  { name: "Marion Davies Children's Center", abbreviation: "MDCC", aliases: ["Marion Davies Children's Health Center"], lat: 34.0652, lon: -118.4424 },
+  { name: "Morton Medical Building", abbreviation: "MORTON", aliases: ["Peter Morton Medical Building"], lat: 34.0652, lon: -118.4465 },
+  { name: "Orthopedic Hospital Research Center", abbreviation: "OHRC", aliases: ["Orthopaedic Hospital Research Center"], lat: 34.0673, lon: -118.4413 },
+  { name: "700 Westwood Plaza", abbreviation: "700 WWP", aliases: [], lat: 34.0665, lon: -118.4452 },
+  // -------------------------------------------------------- Central / student life
+  { name: "Ackerman Student Union", abbreviation: "AU", aliases: ["Ackerman Union", "Ackerman"], lat: 34.0704, lon: -118.4443 },
+  { name: "Kerckhoff Hall", abbreviation: "KH", aliases: ["Kerckhoff"], lat: 34.0704, lon: -118.4435 },
+  { name: "Student Activities Center", abbreviation: "SAC", aliases: [], lat: 34.0715, lon: -118.4441 },
+  { name: "Wooden Recreation and Sports Center", abbreviation: "WOODEN", aliases: ["John Wooden Center", "Wooden Center", "Wooden"], lat: 34.0716, lon: -118.4454 },
+  { name: "Pauley Pavilion", abbreviation: null, aliases: ["Edwin W. Pauley Pavilion"], lat: 34.0704, lon: -118.4468 },
+  { name: "James West Alumni Center", abbreviation: "JWEST", aliases: ["West Alumni Center", "Alumni Center"], lat: 34.0702, lon: -118.4454 },
+  // ------------------------------------------------------------- Anderson School
+  { name: "Marion Anderson Hall", abbreviation: "ANDERSON", aliases: ["Anderson Hall", "UCLA Anderson School of Management"], lat: 34.074, lon: -118.443 },
+  { name: "Cornell Hall", abbreviation: "CORNELL", aliases: [], lat: 34.074, lon: -118.4434 },
+  { name: "Gold Hall", abbreviation: "GOLD", aliases: [], lat: 34.0736, lon: -118.4439 },
+  { name: "Entrepreneurs Hall", abbreviation: "ENTRPNR", aliases: [], lat: 34.0736, lon: -118.4434 },
+  { name: "Collins Center for Executive Education", abbreviation: "COLLINS", aliases: ["Collins Executive Education Center"], lat: 34.0735, lon: -118.4445 },
+  { name: "Korn Convocation Hall", abbreviation: "KORN", aliases: [], lat: 34.0736, lon: -118.4431 },
+  { name: "Eugene and Maxine Rosenfeld Library", abbreviation: "ROSNFLD", aliases: ["Rosenfeld Library"], lat: 34.0744, lon: -118.4435 },
+  // ------------------------------------------------------------------- The Hill
+  { name: "Carnesale Commons", abbreviation: "CARNESL", aliases: ["Carnesale"], lat: 34.0718, lon: -118.4498 },
+  { name: "Covel Commons", abbreviation: "COVEL", aliases: ["Covel"], lat: 34.073, lon: -118.45 },
+  { name: "De Neve Plaza Commons Building", abbreviation: "DE NEVE", aliases: ["De Neve Commons", "De Neve Plaza"], lat: 34.0704, lon: -118.4502 },
+  { name: "Canyon Point", abbreviation: "CNYN PT", aliases: [], lat: 34.0737, lon: -118.4509 },
+  { name: "Northwest Campus Auditorium", abbreviation: "NWAUD", aliases: [], lat: 34.0719, lon: -118.4504 },
+  { name: "Sproul Hall", abbreviation: "SPROUL", aliases: [], lat: 34.0721, lon: -118.45 },
+  { name: "Rieber Hall", abbreviation: "RIEBER", aliases: [], lat: 34.072, lon: -118.4515 },
+  { name: "Dykstra Hall", abbreviation: "DYKSTRA", aliases: [], lat: 34.07, lon: -118.4501 },
+  { name: "Hedrick Hall", abbreviation: "HEDRICK", aliases: [], lat: 34.0733, lon: -118.4524 },
+  { name: "Olympic Hall", abbreviation: "OLYMPIC", aliases: [], lat: 34.0724, lon: -118.4536 },
+  { name: "Bradley Hall", abbreviation: "BRADLEY", aliases: ["Bradley International Hall"], lat: 34.0696, lon: -118.4494 },
+  // --------------------------------------------------------------------- Other
+  { name: "Fernald Center", abbreviation: "FERNALD", aliases: [], lat: 34.0764, lon: -118.4438 },
+  { name: "UCLA Lab School, Seeds Campus", abbreviation: "UES", aliases: ["UCLA Lab School", "Seeds Campus"], lat: 34.0755, lon: -118.4437 },
+  { name: "Lab School 1", abbreviation: "LABSCH1", aliases: [], lat: 34.0755, lon: -118.4437 },
+  { name: "William Andrews Clark Memorial Library", abbreviation: "CLARK", aliases: ["Clark Library"], lat: 34.0287, lon: -118.3097 }
+];
+var VIRTUAL_LOCATION_RE = /^(online|no location|no facility|off campus|to be (announced|arranged)|tba|tbd|n a|field|remote|see instructor)\b/;
+function normalizeLocation(input) {
+  return input.toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
+}
+function isVirtualLocation(input) {
+  return VIRTUAL_LOCATION_RE.test(normalizeLocation(input));
+}
+var BUILDING_KEYS = BUILDINGS.flatMap(
+  (building) => [building.name, building.abbreviation ?? "", ...building.aliases].filter((k) => k.length > 0).map((k) => ({ key: normalizeLocation(k), building }))
+).sort((a, b) => b.key.length - a.key.length);
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function roomAfter(input, key) {
+  const pattern = key.split(" ").map(escapeRegExp).join("[^a-z0-9]+");
+  const m = input.match(new RegExp(`^[^a-z0-9]*${pattern}[^a-z0-9]*(.*)$`, "i"));
+  const room = m ? m[1].trim() : "";
+  return room.length > 0 ? room : null;
+}
+function matchBuilding(input) {
+  const norm = normalizeLocation(input);
+  if (norm.length === 0) return null;
+  for (const { key, building } of BUILDING_KEYS) {
+    if (norm === key) return { input, building, room: null };
+    if (norm.startsWith(`${key} `)) {
+      return { input, building, room: roomAfter(input, key) };
+    }
+  }
+  for (const { key, building } of BUILDING_KEYS) {
+    if (norm.includes(` ${key} `) || norm.endsWith(` ${key}`)) {
+      return { input, building, room: null };
+    }
+  }
+  return null;
+}
+var GENERIC_TOKENS = /* @__PURE__ */ new Set([
+  "hall",
+  "building",
+  "center",
+  "centre",
+  "commons",
+  "school",
+  "ucla",
+  "the",
+  "and",
+  "of",
+  "for"
+]);
+function suggestBuildings(input, limit = 6) {
+  const tokens = normalizeLocation(input).split(" ").filter((t) => t.length > 2 && !/^\d/.test(t) && !GENERIC_TOKENS.has(t));
+  if (tokens.length === 0) return [];
+  return BUILDINGS.map((building) => {
+    const haystack = normalizeLocation(
+      [building.name, building.abbreviation ?? "", ...building.aliases].join(" ")
+    );
+    let score = 0;
+    for (const t of tokens) {
+      if (haystack.includes(t)) score += t.length;
+      else if (t.length >= 4 && haystack.includes(t.slice(0, 4))) score += 2;
+    }
+    return { building, score };
+  }).filter((s) => s.score > 0).sort((a, b) => b.score - a.score).slice(0, limit).map((s) => s.building.name);
+}
+function haversineMeters(a, b) {
+  const R = 6371e3;
+  const toRad = (deg) => deg * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function estimateWalk(from, to) {
+  const straight = haversineMeters(from, to);
+  const distance = straight * PATH_FACTOR;
+  return {
+    straight_line_m: Math.round(straight),
+    approx_distance_m: Math.round(distance),
+    approx_walk_minutes: Math.round(distance / WALK_SPEED_M_PER_MIN * 10) / 10
+  };
+}
+
 // node_modules/cheerio/lib/esm/options.js
 var defaultOpts = {
   xml: false,
@@ -35548,414 +35739,6 @@ var { merge: merge3 } = static_exports;
 var { parseHTML: parseHTML2 } = static_exports;
 var { root: root2 } = static_exports;
 
-// src/audit.ts
-function clean(text3) {
-  return text3.replace(/[\s ]+/g, " ").trim();
-}
-function numOrNull(text3) {
-  const t = clean(text3);
-  if (!t) return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
-}
-function statusFromClass(cls) {
-  const m = /(?:Status_|status)(OK|NO|IP|PL|NONE)\b/.exec(cls ?? "");
-  switch (m?.[1]) {
-    case "OK":
-      return "complete";
-    case "NO":
-      return "unfulfilled";
-    case "IP":
-      return "in_progress";
-    case "PL":
-      return "planned";
-    default:
-      return "informational";
-  }
-}
-function keyFromLabel(label, fallback) {
-  const l = clean(label).toUpperCase();
-  if (!l) return fallback;
-  if (l.includes("GRADED")) return "graded_attempted_units";
-  if (l.includes("UNIT")) return "units";
-  if (l.includes("COURSE")) return "courses";
-  if (l.includes("POINT")) return "grade_points";
-  if (l.includes("GPA")) return "gpa";
-  if (l.includes("SUB")) return "subrequirements";
-  return l.toLowerCase().replace(/[^a-z0-9]+/g, "_");
-}
-function parseTotalsTable($2, $table) {
-  const earned = {};
-  const needs = {};
-  $table.find("tr").each((_, tr) => {
-    const $tr = $2(tr);
-    const rowClass = $tr.attr("class") ?? "";
-    const rowLabel = clean($tr.find(".rowlabel").first().text()).toUpperCase();
-    const isNeeds = /needs/i.test(rowClass) || rowLabel.startsWith("NEEDS");
-    const isInProgress = /IpHours/i.test(rowClass) || rowLabel.startsWith("IN-PROG");
-    const target = isNeeds ? needs : earned;
-    const prefix = isInProgress ? "in_progress_" : "";
-    $tr.find(".number, td.gpa, span.gpa").each((_2, el) => {
-      const $el = $2(el);
-      const value = numOrNull($el.text());
-      if (value === null) return;
-      const cls = $el.attr("class") ?? "";
-      let fallback = "value";
-      if (/\bhours\b/.test(cls)) fallback = "units";
-      else if (/\bcount\b/.test(cls)) fallback = "courses";
-      else if (/\bpoints\b/.test(cls)) fallback = "grade_points";
-      else if (/\bgpa\b/.test(cls)) fallback = "gpa";
-      else if (/\bsubreqs\b/.test(cls)) fallback = "subrequirements";
-      const label = $el.nextAll(".hourslabel, .countlabel, .pointslabel, .gpalabel, .countlabel, .fieldlabel, .smallfieldlabel").first().text();
-      const key = /\bgpa\b/.test(cls) ? "gpa" : keyFromLabel(label, fallback);
-      target[prefix + key] = value;
-    });
-  });
-  return {
-    earned: Object.keys(earned).length ? earned : void 0,
-    needs: Object.keys(needs).length ? needs : void 0
-  };
-}
-function mergeTotals(base, extra) {
-  if (extra.earned) base.earned = { ...base.earned ?? {}, ...extra.earned };
-  if (extra.needs) base.needs = { ...base.needs ?? {}, ...extra.needs };
-}
-function parseCourseRows($2, $table) {
-  const courses = [];
-  $table.find("tr.takenCourse").each((_, tr) => {
-    const $tr = $2(tr);
-    const descLines = $tr.find("td.description .descLine").map((_2, d) => clean($2(d).text())).get().filter((l) => l.length > 0);
-    const course = {
-      term: clean($tr.find("td.term").first().text()),
-      course: clean($tr.find("td.course").first().text()),
-      units: numOrNull($tr.find("td.credit").first().text()),
-      grade: clean($tr.find("td.grade").first().text())
-    };
-    if (/\bip\b/.test($tr.attr("class") ?? "")) course.in_progress = true;
-    const ccode = clean($tr.find("td.ccode").first().text());
-    if (ccode) course.condition_code = ccode;
-    if (descLines.length > 0) course.title = descLines[0];
-    if (descLines.length > 1) course.notes = descLines.slice(1);
-    courses.push(course);
-  });
-  return courses;
-}
-function multilineText($2, $el) {
-  const $copy = $el.clone();
-  $copy.find("br").replaceWith("\n");
-  return $copy.text().split("\n").map((l) => clean(l)).filter((l) => l.length > 0).join("\n");
-}
-function parseCourseList($2, $table) {
-  const out = [];
-  $table.find("span.course").each((_, el) => {
-    const $el = $2(el);
-    const dept = clean($el.attr("department") ?? "");
-    const num = clean($el.attr("number") ?? "");
-    const text3 = dept && num ? `${dept} ${num}` : clean($el.text());
-    if (text3) out.push(text3);
-  });
-  return out;
-}
-function parseSubrequirement($2, el) {
-  const $sub = $2(el);
-  const number3 = clean($sub.find(".subreqPretext .subreqNumber").first().text()).replace(/\)$/, "");
-  const status = statusFromClass(
-    $sub.find(".subreqPretext .status").first().attr("class")
-  );
-  const title = multilineText($2, $sub.find(".subreqTitle").first());
-  const sub = { status, title };
-  if (number3) sub.number = number3;
-  const $body = $sub.find(".subreqBody").first();
-  const totals = {};
-  $body.find("table.subrequirementTotals, table.subreqNeeds").each((_, t) => {
-    mergeTotals(totals, parseTotalsTable($2, $2(t)));
-  });
-  if (totals.earned) sub.earned = totals.earned;
-  if (totals.needs) sub.needs = totals.needs;
-  const applied = parseCourseRows($2, $body.find("table.completedCourses").first());
-  if (applied.length > 0) sub.courses_applied = applied;
-  const selectFrom = parseCourseList($2, $body.find("table.selectcourses").first());
-  if (selectFrom.length > 0) sub.select_from = selectFrom;
-  const notFrom = parseCourseList($2, $body.find("table.notcourses").first());
-  if (notFrom.length > 0) sub.not_from = notFrom;
-  return sub;
-}
-function parseRequirement($2, el) {
-  const $req = $2(el);
-  const cls = $req.attr("class") ?? "";
-  const req = {
-    name: clean($req.attr("rname") ?? ""),
-    title: multilineText($2, $req.find(".reqText .reqTitle").first()),
-    status: statusFromClass(cls),
-    subrequirements: []
-  };
-  const category = /category_(\S+)/.exec(cls)?.[1];
-  if (category) req.category = category;
-  const totals = parseTotalsTable(
-    $2,
-    $req.find("> .reqBody > table.requirementTotals").first()
-  );
-  if (totals.earned) req.earned = totals.earned;
-  if (totals.needs) req.needs = totals.needs;
-  $req.find("> .reqBody > .auditSubrequirements > .subrequirement").each((_, s) => {
-    req.subrequirements.push(parseSubrequirement($2, s));
-  });
-  return req;
-}
-function parseGpaCategories(html3) {
-  const m = /loadAcademicProgressGraph\([^,]+,\s*\{[^)]*?\},\s*(\{[\s\S]*?\})\);/.exec(html3);
-  if (!m) return [];
-  try {
-    const graph = JSON.parse(m[1]);
-    return (graph.data ?? []).map((d) => ({
-      label: d.label ?? "",
-      completed_units: d.completedHours ?? 0,
-      in_progress_units: d.inProgressHours ?? 0,
-      unfulfilled_units: d.unfulfilledHours ?? 0,
-      planned_units: d.plannedHours ?? 0,
-      gpa: d.gpa && d.gpa > 0 ? Number(d.gpa.toFixed(3)) : null
-    }));
-  } catch {
-    return [];
-  }
-}
-function parseDegreePrograms(html3) {
-  const programs = [];
-  const section = /Default Program<\/b>[\s\S]*?<\/table>/.exec(html3)?.[0];
-  if (!section) return programs;
-  const rowRe = /<tr>\s*(?:<td[^>]*>[\s\S]*?<\/td>\s*){4}<\/tr>/g;
-  for (const row of section.match(rowRe) ?? []) {
-    const cells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map(
-      (c) => clean(c[1].replace(/&nbsp;/g, " "))
-    );
-    if (cells.length === 4 && cells[0]) {
-      programs.push({
-        role: cells[0],
-        catalog_term: cells[1],
-        code: cells[2],
-        description: cells[3]
-      });
-    }
-  }
-  return programs;
-}
-function parseDegreeAudit(html3) {
-  const $2 = load(html3);
-  const $audit = $2("#audit").first();
-  if ($audit.length === 0 || $2("#auditRequirements").length === 0) {
-    throw new Error(
-      "This file does not look like a saved UCLA DARS degree audit (no #audit / #auditRequirements markup found). Save the 'Audit Results' page from dars.ucla.edu with the browser's 'Save page as' and pass that HTML file."
-    );
-  }
-  const studentInfo = {};
-  $2(".auditHeaderTable th").each((_, th) => {
-    const key = clean($2(th).text());
-    const value = clean($2(th).next("td").text());
-    if (key && value) studentInfo[key] = value;
-  });
-  const overallStatus = clean($2("#auditHeader [class^='completionText']").first().text()) || "(no completion banner found)";
-  const requirements = [];
-  $2("#auditRequirements > .requirement").each((_, el) => {
-    requirements.push(parseRequirement($2, el));
-  });
-  return {
-    overall_status: overallStatus,
-    student_info: studentInfo,
-    degree_programs: parseDegreePrograms(html3),
-    unit_gpa_summary: parseGpaCategories(html3),
-    requirements
-  };
-}
-
-// src/buildings.ts
-var WALK_SPEED_M_PER_MIN = 80;
-var PATH_FACTOR = 1.4;
-var BUILDINGS = [
-  // ------------------------------------------------- North Campus / Royce quad
-  { name: "Royce Hall", abbreviation: "ROYCE", aliases: [], lat: 34.0729, lon: -118.4422 },
-  { name: "Powell Library Building", abbreviation: "POWELL", aliases: ["Powell Library", "Powell"], lat: 34.0716, lon: -118.4422 },
-  { name: "Haines Hall", abbreviation: "HAINES", aliases: [], lat: 34.0729, lon: -118.4413 },
-  { name: "Renee and David Kaplan Hall", abbreviation: "KAPLAN", aliases: ["Kaplan Hall", "Humanities Building", "Humanities"], lat: 34.0715, lon: -118.4413 },
-  { name: "Rolfe Hall", abbreviation: "ROLFE", aliases: [], lat: 34.0739, lon: -118.4421 },
-  { name: "Dodd Hall", abbreviation: "DODD", aliases: [], lat: 34.0728, lon: -118.4393 },
-  { name: "Bunche Hall", abbreviation: "BUNCHE", aliases: [], lat: 34.0743, lon: -118.4404 },
-  { name: "Public Affairs Building", abbreviation: "PUB AFF", aliases: ["Public Affairs", "Luskin School of Public Affairs", "Luskin"], lat: 34.0744, lon: -118.4392 },
-  { name: "Perloff Hall", abbreviation: "PERLOFF", aliases: [], lat: 34.0734, lon: -118.4402 },
-  { name: "Broad Art Center", abbreviation: "BROAD", aliases: ["Eli and Edythe Broad Art Center"], lat: 34.0759, lon: -118.441 },
-  { name: "Macgowan Hall", abbreviation: "MACGOWN", aliases: ["MacGowan Hall"], lat: 34.0759, lon: -118.4399 },
-  { name: "Macgowan Hall East", abbreviation: "MCGWN E", aliases: ["MacGowan East"], lat: 34.0761, lon: -118.4393 },
-  { name: "Melnitz Hall", abbreviation: "MELNITZ", aliases: ["James Bridges Theater"], lat: 34.0763, lon: -118.44 },
-  { name: "Schoenberg Music Building", abbreviation: "SMB", aliases: ["Schoenberg Hall", "Schoenberg"], lat: 34.0707, lon: -118.4402 },
-  { name: "Ostin Music Center", abbreviation: "OSTIN", aliases: ["Evelyn and Mo Ostin Music Center", "Ostin"], lat: 34.0704, lon: -118.4405 },
-  { name: "Kaufman Hall", abbreviation: "KAUFMAN", aliases: ["Glorya Kaufman Hall", "Dance Building"], lat: 34.0728, lon: -118.4441 },
-  { name: "Fowler Museum at UCLA", abbreviation: "FOWLER", aliases: ["Fowler Museum", "Fowler"], lat: 34.073, lon: -118.4432 },
-  { name: "Moore Hall", abbreviation: "MOORE", aliases: [], lat: 34.0704, lon: -118.4427 },
-  { name: "Franz Hall", abbreviation: "FRANZ", aliases: [], lat: 34.0696, lon: -118.4415 },
-  { name: "Pritzker Hall", abbreviation: "PRITZKER", aliases: ["Psychology Tower", "Psychology Building"], lat: 34.0696, lon: -118.4408 },
-  { name: "Murphy Hall", abbreviation: "MURPHY", aliases: ["Administration Building"], lat: 34.0716, lon: -118.4387 },
-  { name: "Law Building", abbreviation: "LAW", aliases: ["School of Law", "UCLA School of Law"], lat: 34.073, lon: -118.4386 },
-  { name: "Young Research Library", abbreviation: "YRL", aliases: ["Charles E. Young Research Library"], lat: 34.0749, lon: -118.4415 },
-  { name: "Graduate School of Education and Information Studies Building", abbreviation: "GSEIS", aliases: ["GSE&IS Building", "Education Building"], lat: 34.0751, lon: -118.4422 },
-  { name: "Lu Valle Commons", abbreviation: "LUVALLE", aliases: ["LuValle Commons"], lat: 34.0736, lon: -118.4392 },
-  { name: "Sculpture Garden", abbreviation: "SCULPT", aliases: ["Franklin D. Murphy Sculpture Garden"], lat: 34.075, lon: -118.4401 },
-  { name: "Portola Plaza Building", abbreviation: "PORTOLA", aliases: ["Institute for Pure and Applied Mathematics", "IPAM"], lat: 34.0703, lon: -118.4419 },
-  // ---------------------------------------------- South Campus / Court of Sciences
-  { name: "Boelter Hall", abbreviation: "BOELTER", aliases: ["Boelter"], lat: 34.0689, lon: -118.443 },
-  { name: "Mathematical Sciences", abbreviation: "MS", aliases: ["Math Sciences", "Mathematical Sciences Building", "Math Sci"], lat: 34.0695, lon: -118.4428 },
-  { name: "Engineering IV", abbreviation: "ENGR IV", aliases: ["Engineering 4"], lat: 34.0688, lon: -118.444 },
-  { name: "Engineering V", abbreviation: "ENGR V", aliases: ["Engineering 5"], lat: 34.0695, lon: -118.4438 },
-  { name: "Engineering VI", abbreviation: "ENGR VI", aliases: ["Engineering 6", "Mong Learning Center"], lat: 34.0695, lon: -118.4443 },
-  { name: "Knudsen Hall", abbreviation: "KNUDSEN", aliases: [], lat: 34.0706, lon: -118.4413 },
-  { name: "Kinsey Science Teaching Pavilion", abbreviation: "KNSY PV", aliases: ["Kinsey Teaching Pavilion", "Kinsey Pavilion", "Kinsey"], lat: 34.0702, lon: -118.4413 },
-  { name: "Physics and Astronomy Building", abbreviation: "PAB", aliases: ["Physics & Astronomy Building", "Physics and Astronomy"], lat: 34.0707, lon: -118.4416 },
-  { name: "Geology Building", abbreviation: "GEOLOGY", aliases: ["Geology"], lat: 34.0692, lon: -118.4412 },
-  { name: "Slichter Hall", abbreviation: "SLICHTR", aliases: [], lat: 34.0689, lon: -118.4408 },
-  { name: "Young Hall", abbreviation: "WGYOUNG", aliases: ["William G. Young Hall", "Young Hall CS"], lat: 34.0686, lon: -118.4413 },
-  { name: "Molecular Sciences Building", abbreviation: "MOL SCI", aliases: ["Molecular Sciences"], lat: 34.0682, lon: -118.4409 },
-  { name: "Boyer Hall", abbreviation: "BOYER", aliases: ["Paul D. Boyer Hall"], lat: 34.0681, lon: -118.4418 },
-  { name: "Life Sciences", abbreviation: "LS", aliases: ["Life Sciences Building"], lat: 34.0671, lon: -118.4425 },
-  { name: "Terasaki Life Sciences Building", abbreviation: "TERASKI", aliases: ["Terasaki Life Sciences", "Terasaki"], lat: 34.0672, lon: -118.4401 },
-  { name: "Hershey Hall", abbreviation: "HERSHEY", aliases: [], lat: 34.0669, lon: -118.4399 },
-  { name: "Botany Building", abbreviation: "BOTANY", aliases: ["La Kretz Botany Building", "Botany"], lat: 34.0668, lon: -118.4411 },
-  { name: "La Kretz Hall", abbreviation: "LAKRETZ", aliases: [], lat: 34.0676, lon: -118.4427 },
-  { name: "La Kretz Garden Pavillion", abbreviation: "LKGP", aliases: ["La Kretz Garden Pavilion"], lat: 34.0668, lon: -118.4415 },
-  { name: "Court of Sciences Student Center", abbreviation: null, aliases: ["Court of Sciences"], lat: 34.0682, lon: -118.4422 },
-  { name: "California NanoSystems Institute", abbreviation: "CNSI", aliases: ["California Nanosystems Institute"], lat: 34.0681, lon: -118.443 },
-  // ------------------------------------------------------------ Health Sciences
-  { name: "Center for the Health Sciences", abbreviation: "HLTHSCI", aliases: ["Center for Health Sciences", "CHS"], lat: 34.0662, lon: -118.4431 },
-  { name: "Factor Health Sciences Building", abbreviation: "FACTOR", aliases: ["Factor Building", "Factor"], lat: 34.0668, lon: -118.442 },
-  { name: "Gonda (Goldschmied) Neuroscience and Genetics Research Center", abbreviation: "GONDA", aliases: ["Gonda Neuroscience and Genetics Research Center", "Gonda Center", "Gonda"], lat: 34.0674, lon: -118.4447 },
-  { name: "Neuroscience Research Building", abbreviation: "NEUROSC", aliases: [], lat: 34.0674, lon: -118.4433 },
-  { name: "MacDonald Medical Research Laboratories", abbreviation: "MACDNLD", aliases: ["MacDonald Medical Research Laboratory"], lat: 34.0674, lon: -118.4441 },
-  { name: "Brain Research Institute", abbreviation: "BRI", aliases: [], lat: 34.0663, lon: -118.4443 },
-  { name: "Brain Mapping Center", abbreviation: "BMC", aliases: ["Ahmanson-Lovelace Brain Mapping Center"], lat: 34.0667, lon: -118.4444 },
-  { name: "Semel Institute for Neuroscience and Human Behavior", abbreviation: "SEMEL", aliases: ["Semel Institute"], lat: 34.0658, lon: -118.4445 },
-  { name: "Reed Neurological Research Center", abbreviation: "REED", aliases: ["Reed Neurological"], lat: 34.0662, lon: -118.4448 },
-  { name: "Rosenfeld Hall", abbreviation: null, aliases: [], lat: 34.0667, lon: -118.4448 },
-  { name: "Public Health, School of", abbreviation: "PUB HLT", aliases: ["School of Public Health", "Fielding School of Public Health"], lat: 34.0667, lon: -118.4436 },
-  { name: "Dentistry, School of", abbreviation: "DENT", aliases: ["School of Dentistry"], lat: 34.0664, lon: -118.442 },
-  { name: "Biomedical Sciences Research Building", abbreviation: "BIO SCI", aliases: ["BSRB"], lat: 34.0666, lon: -118.4446 },
-  { name: "Geffen Hall", abbreviation: "GEFFENHL", aliases: ["David Geffen Hall"], lat: 34.0645, lon: -118.4422 },
-  { name: "Wasserman Building", abbreviation: "WASSRMN", aliases: [], lat: 34.0653, lon: -118.4446 },
-  { name: "Ueberroth Building", abbreviation: "PVUB", aliases: ["Peter V. Ueberroth Building"], lat: 34.064, lon: -118.447 },
-  { name: "Marion Davies Children's Center", abbreviation: "MDCC", aliases: ["Marion Davies Children's Health Center"], lat: 34.0652, lon: -118.4424 },
-  { name: "Morton Medical Building", abbreviation: "MORTON", aliases: ["Peter Morton Medical Building"], lat: 34.0652, lon: -118.4465 },
-  { name: "Orthopedic Hospital Research Center", abbreviation: "OHRC", aliases: ["Orthopaedic Hospital Research Center"], lat: 34.0673, lon: -118.4413 },
-  { name: "700 Westwood Plaza", abbreviation: "700 WWP", aliases: [], lat: 34.0665, lon: -118.4452 },
-  // -------------------------------------------------------- Central / student life
-  { name: "Ackerman Student Union", abbreviation: "AU", aliases: ["Ackerman Union", "Ackerman"], lat: 34.0704, lon: -118.4443 },
-  { name: "Kerckhoff Hall", abbreviation: "KH", aliases: ["Kerckhoff"], lat: 34.0704, lon: -118.4435 },
-  { name: "Student Activities Center", abbreviation: "SAC", aliases: [], lat: 34.0715, lon: -118.4441 },
-  { name: "Wooden Recreation and Sports Center", abbreviation: "WOODEN", aliases: ["John Wooden Center", "Wooden Center", "Wooden"], lat: 34.0716, lon: -118.4454 },
-  { name: "Pauley Pavilion", abbreviation: null, aliases: ["Edwin W. Pauley Pavilion"], lat: 34.0704, lon: -118.4468 },
-  { name: "James West Alumni Center", abbreviation: "JWEST", aliases: ["West Alumni Center", "Alumni Center"], lat: 34.0702, lon: -118.4454 },
-  // ------------------------------------------------------------- Anderson School
-  { name: "Marion Anderson Hall", abbreviation: "ANDERSON", aliases: ["Anderson Hall", "UCLA Anderson School of Management"], lat: 34.074, lon: -118.443 },
-  { name: "Cornell Hall", abbreviation: "CORNELL", aliases: [], lat: 34.074, lon: -118.4434 },
-  { name: "Gold Hall", abbreviation: "GOLD", aliases: [], lat: 34.0736, lon: -118.4439 },
-  { name: "Entrepreneurs Hall", abbreviation: "ENTRPNR", aliases: [], lat: 34.0736, lon: -118.4434 },
-  { name: "Collins Center for Executive Education", abbreviation: "COLLINS", aliases: ["Collins Executive Education Center"], lat: 34.0735, lon: -118.4445 },
-  { name: "Korn Convocation Hall", abbreviation: "KORN", aliases: [], lat: 34.0736, lon: -118.4431 },
-  { name: "Eugene and Maxine Rosenfeld Library", abbreviation: "ROSNFLD", aliases: ["Rosenfeld Library"], lat: 34.0744, lon: -118.4435 },
-  // ------------------------------------------------------------------- The Hill
-  { name: "Carnesale Commons", abbreviation: "CARNESL", aliases: ["Carnesale"], lat: 34.0718, lon: -118.4498 },
-  { name: "Covel Commons", abbreviation: "COVEL", aliases: ["Covel"], lat: 34.073, lon: -118.45 },
-  { name: "De Neve Plaza Commons Building", abbreviation: "DE NEVE", aliases: ["De Neve Commons", "De Neve Plaza"], lat: 34.0704, lon: -118.4502 },
-  { name: "Canyon Point", abbreviation: "CNYN PT", aliases: [], lat: 34.0737, lon: -118.4509 },
-  { name: "Northwest Campus Auditorium", abbreviation: "NWAUD", aliases: [], lat: 34.0719, lon: -118.4504 },
-  { name: "Sproul Hall", abbreviation: "SPROUL", aliases: [], lat: 34.0721, lon: -118.45 },
-  { name: "Rieber Hall", abbreviation: "RIEBER", aliases: [], lat: 34.072, lon: -118.4515 },
-  { name: "Dykstra Hall", abbreviation: "DYKSTRA", aliases: [], lat: 34.07, lon: -118.4501 },
-  { name: "Hedrick Hall", abbreviation: "HEDRICK", aliases: [], lat: 34.0733, lon: -118.4524 },
-  { name: "Olympic Hall", abbreviation: "OLYMPIC", aliases: [], lat: 34.0724, lon: -118.4536 },
-  { name: "Bradley Hall", abbreviation: "BRADLEY", aliases: ["Bradley International Hall"], lat: 34.0696, lon: -118.4494 },
-  // --------------------------------------------------------------------- Other
-  { name: "Fernald Center", abbreviation: "FERNALD", aliases: [], lat: 34.0764, lon: -118.4438 },
-  { name: "UCLA Lab School, Seeds Campus", abbreviation: "UES", aliases: ["UCLA Lab School", "Seeds Campus"], lat: 34.0755, lon: -118.4437 },
-  { name: "Lab School 1", abbreviation: "LABSCH1", aliases: [], lat: 34.0755, lon: -118.4437 },
-  { name: "William Andrews Clark Memorial Library", abbreviation: "CLARK", aliases: ["Clark Library"], lat: 34.0287, lon: -118.3097 }
-];
-var VIRTUAL_LOCATION_RE = /^(online|no location|no facility|off campus|to be (announced|arranged)|tba|tbd|n a|field|remote|see instructor)\b/;
-function normalizeLocation(input) {
-  return input.toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
-}
-function isVirtualLocation(input) {
-  return VIRTUAL_LOCATION_RE.test(normalizeLocation(input));
-}
-var BUILDING_KEYS = BUILDINGS.flatMap(
-  (building) => [building.name, building.abbreviation ?? "", ...building.aliases].filter((k) => k.length > 0).map((k) => ({ key: normalizeLocation(k), building }))
-).sort((a, b) => b.key.length - a.key.length);
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function roomAfter(input, key) {
-  const pattern = key.split(" ").map(escapeRegExp).join("[^a-z0-9]+");
-  const m = input.match(new RegExp(`^[^a-z0-9]*${pattern}[^a-z0-9]*(.*)$`, "i"));
-  const room = m ? m[1].trim() : "";
-  return room.length > 0 ? room : null;
-}
-function matchBuilding(input) {
-  const norm = normalizeLocation(input);
-  if (norm.length === 0) return null;
-  for (const { key, building } of BUILDING_KEYS) {
-    if (norm === key) return { input, building, room: null };
-    if (norm.startsWith(`${key} `)) {
-      return { input, building, room: roomAfter(input, key) };
-    }
-  }
-  for (const { key, building } of BUILDING_KEYS) {
-    if (norm.includes(` ${key} `) || norm.endsWith(` ${key}`)) {
-      return { input, building, room: null };
-    }
-  }
-  return null;
-}
-var GENERIC_TOKENS = /* @__PURE__ */ new Set([
-  "hall",
-  "building",
-  "center",
-  "centre",
-  "commons",
-  "school",
-  "ucla",
-  "the",
-  "and",
-  "of",
-  "for"
-]);
-function suggestBuildings(input, limit = 6) {
-  const tokens = normalizeLocation(input).split(" ").filter((t) => t.length > 2 && !/^\d/.test(t) && !GENERIC_TOKENS.has(t));
-  if (tokens.length === 0) return [];
-  return BUILDINGS.map((building) => {
-    const haystack = normalizeLocation(
-      [building.name, building.abbreviation ?? "", ...building.aliases].join(" ")
-    );
-    let score = 0;
-    for (const t of tokens) {
-      if (haystack.includes(t)) score += t.length;
-      else if (t.length >= 4 && haystack.includes(t.slice(0, 4))) score += 2;
-    }
-    return { building, score };
-  }).filter((s) => s.score > 0).sort((a, b) => b.score - a.score).slice(0, limit).map((s) => s.building.name);
-}
-function haversineMeters(a, b) {
-  const R = 6371e3;
-  const toRad = (deg) => deg * Math.PI / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lon - a.lon);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-function estimateWalk(from, to) {
-  const straight = haversineMeters(from, to);
-  const distance = straight * PATH_FACTOR;
-  return {
-    straight_line_m: Math.round(straight),
-    approx_distance_m: Math.round(distance),
-    approx_walk_minutes: Math.round(distance / WALK_SPEED_M_PER_MIN * 10) / 10
-  };
-}
-
 // src/soc.ts
 var BASE = "https://sa.ucla.edu";
 var USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ucla-soc-mcp/1.0";
@@ -36451,6 +36234,7 @@ async function getCatalogCourse(subjectCode, catalogNumber, year = "current") {
 }
 
 // src/index.ts
+var import_meta = {};
 var availabilitySchema = external_exports.enum(["any", "open", "waitlist", "open_or_waitlist", "closed", "cancelled"]).default("any").describe(
   "Filter by section availability: 'open' = has open seats, 'waitlist' = waitlist available, 'open_or_waitlist' = enrollable either way, 'closed', 'cancelled', or 'any' (default, no filter)."
 );
@@ -36460,7 +36244,7 @@ var termSchema = external_exports.string().describe(
 var server = new McpServer(
   { name: "ucla-soc", version: "1.0.0" },
   {
-    instructions: "Tools for querying the public UCLA Schedule of Classes. Typical flow: list_terms -> list_subject_areas (find the subject code) -> search_courses (overview of a subject's courses, optionally filtered by seat availability) -> get_course_details (per-section seats, waitlist, times, locations, instructors, and discussion/lab subsections for one course). All data is public; no auth needed. For schedule planning: get_class_detail adds a section's final exam date/time/location, enforced requisites, grading basis and class notes; get_course_description returns the General Catalog description with its requisite sentences; estimate_walk_time (with list_buildings) gives an offline walking-time estimate between two classroom buildings. parse_degree_audit is different: it reads a locally saved UCLA DARS degree audit HTML file and returns requirement completion status, applied courses, and remaining needs."
+    instructions: "Tools for querying the public UCLA Schedule of Classes. Typical flow: list_terms -> list_subject_areas (find the subject code) -> search_courses (overview of a subject's courses, optionally filtered by seat availability) -> get_course_details (per-section seats, waitlist, times, locations, instructors, and discussion/lab subsections for one course). All data is public; no auth needed. For schedule planning: get_class_detail adds a section's final exam date/time/location, enforced requisites, grading basis and class notes; get_course_description returns the General Catalog description with its requisite sentences; estimate_walk_time (with list_buildings) gives an offline walking-time estimate between two classroom buildings. For a UCLA DARS degree audit, read the 'parse-degree-audit-script' resource: it hands you a self-contained Node.js script, not a tool call, because the saved audit HTML lives wherever the caller has it (a local file, a dragged-in upload) rather than on this server. Save the script and run it yourself against that file to get requirement completion status, applied courses, and remaining needs as JSON."
   }
 );
 function jsonResult(data2) {
@@ -36800,49 +36584,28 @@ server.registerTool(
     }
   }
 );
-server.registerTool(
-  "parse_degree_audit",
+var MODULE_DIR = typeof __dirname !== "undefined" ? __dirname : (0, import_node_path.dirname)((0, import_node_url.fileURLToPath)(import_meta.url));
+var PARSE_DEGREE_AUDIT_SCRIPT_PATH = `${MODULE_DIR}/parse-degree-audit.cjs`;
+server.registerResource(
+  "parse-degree-audit-script",
+  "ucla-soc://scripts/parse-degree-audit.cjs",
   {
-    title: "Parse a saved UCLA degree audit (DARS)",
-    description: "Deterministically parse a UCLA Degree Audit Report (DARS) that was saved from dars.ucla.edu as an HTML file ('Audit Results' tab -> browser 'Save page as'). Returns the overall completion status, student/admit info, unit & GPA breakdown (completed / in-progress / unfulfilled units per GPA category), and every requirement with its subrequirements: status (complete / unfulfilled / in_progress / informational), courses applied (term, course, units, grade), what is still NEEDED (course/unit counts), and SELECT FROM / NOT FROM course lists. Use status_filter to narrow to just unfulfilled or in-progress requirements.",
-    inputSchema: {
-      file_path: external_exports.string().describe(
-        'Absolute path to the saved DARS audit HTML file, e.g. "C:\\\\Users\\\\me\\\\Documents\\\\My Audit - Audit Results Tab.html".'
-      ),
-      status_filter: external_exports.enum(["all", "unfulfilled", "in_progress", "complete"]).default("all").describe(
-        "Only include requirements with this status ('all' = everything, including informational blocks). Header and unit/GPA summary are always returned."
-      )
-    },
-    annotations: { readOnlyHint: true, openWorldHint: false }
+    title: "DAR parsing script (UCLA DARS degree audit)",
+    description: "A self-contained Node.js script (dependencies bundled in, no npm install needed) that deterministically parses a UCLA Degree Audit Report (DARS) saved from dars.ucla.edu as an HTML file ('Audit Results' tab -> browser 'Save page as'). Save this resource's text to a file, e.g. parse-degree-audit.cjs, then run: `node parse-degree-audit.cjs <path-to-audit.html> [status_filter]` where status_filter is one of all (default) | unfulfilled | in_progress | complete. Prints JSON to stdout: overall completion status, student/admit info, unit & GPA breakdown (completed / in-progress / unfulfilled units per GPA category), and every requirement with its subrequirements: status, courses applied (term, course, units, grade), what is still NEEDED (course/unit counts), and SELECT FROM / NOT FROM course lists.",
+    mimeType: "application/javascript"
   },
-  async ({ file_path, status_filter }) => {
+  async (uri) => {
+    let script;
     try {
-      let html3;
-      try {
-        html3 = await (0, import_promises.readFile)(file_path, "utf8");
-      } catch (err) {
-        return errorResult(
-          new Error(
-            `Could not read "${file_path}": ${err instanceof Error ? err.message : String(err)}. Pass the absolute path to a saved DARS audit HTML file.`
-          )
-        );
-      }
-      const audit = parseDegreeAudit(html3);
-      const requirements = status_filter === "all" ? audit.requirements : audit.requirements.filter((r) => r.status === status_filter);
-      return jsonResult({
-        source_file: file_path,
-        status_filter,
-        overall_status: audit.overall_status,
-        student_info: audit.student_info,
-        degree_programs: audit.degree_programs.length ? audit.degree_programs : void 0,
-        unit_gpa_summary: audit.unit_gpa_summary,
-        requirement_count: audit.requirements.length,
-        requirements_shown: requirements.length,
-        requirements
-      });
+      script = await (0, import_promises.readFile)(PARSE_DEGREE_AUDIT_SCRIPT_PATH, "utf8");
     } catch (err) {
-      return errorResult(err);
+      throw new Error(
+        `DAR parsing script not found at ${PARSE_DEGREE_AUDIT_SCRIPT_PATH} (run \`npm run build\` to generate it): ${err instanceof Error ? err.message : String(err)}`
+      );
     }
+    return {
+      contents: [{ uri: uri.href, mimeType: "application/javascript", text: script }]
+    };
   }
 );
 async function main() {

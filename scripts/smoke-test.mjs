@@ -1,6 +1,10 @@
 // End-to-end smoke test: spawns the built server over stdio and exercises every tool.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const client = new Client({ name: "smoke-test", version: "1.0.0" });
 await client.connect(
@@ -99,6 +103,30 @@ console.log(
   `list_buildings(engineering): ${buildings.count} of ${buildings.total_known} known buildings; ` +
     buildings.buildings.map((b) => `${b.name} (${b.abbreviation})`).join(", ")
 );
+
+const resources = await client.listResources();
+console.log("resources:", resources.resources.map((r) => r.uri).join(", "));
+
+const scriptRes = await client.readResource({ uri: "ucla-soc://scripts/parse-degree-audit.cjs" });
+const script = scriptRes.contents[0].text;
+if (!script || script.length < 1000) throw new Error("parse-degree-audit resource: script looks too small");
+
+// Run the served script end-to-end against a minimal DARS-shaped fixture.
+const dir = mkdtempSync(join(tmpdir(), "dar-"));
+const scriptPath = join(dir, "parse-degree-audit.cjs");
+const fixturePath = join(dir, "audit.html");
+writeFileSync(scriptPath, script);
+writeFileSync(
+  fixturePath,
+  `<div id="audit"><div id="auditHeader"><table class="auditHeaderTable">` +
+    `<tr><th>Name</th><td>Test Student</td></tr></table>` +
+    `<div class="completionText">NOT SATISFIED</div></div>` +
+    `<div id="auditRequirements"></div></div>`
+);
+const out = JSON.parse(execFileSync("node", [scriptPath, fixturePath], { encoding: "utf8" }));
+if (out.overall_status !== "NOT SATISFIED") throw new Error("parse-degree-audit script: unexpected output");
+console.log(`parse-degree-audit script: ran standalone, overall_status = "${out.overall_status}"`);
+rmSync(dir, { recursive: true, force: true });
 
 await client.close();
 console.log("SMOKE TEST PASSED");

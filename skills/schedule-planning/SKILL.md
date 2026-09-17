@@ -9,7 +9,7 @@ description: Use when a UCLA student wants help planning classes for a term — 
 
 Guided workflow for planning a UCLA student's class schedule for one term, ending in a rendered mock-schedule artifact. Core principle: **verify, don't assume** — the term, the student's requirements, every prerequisite, and every conflict get an explicit check, and the student confirms anything the data cannot.
 
-Uses the `ucla-soc` MCP tools (`list_terms`, `search_courses`, `get_course_details`, `get_class_detail`, `get_course_description`, `parse_degree_audit`, `estimate_walk_time`, `list_buildings`). All schedule data is the public Schedule of Classes — unofficial and subject to registrar change.
+Uses the `ucla-soc` MCP tools (`list_terms`, `search_courses`, `get_course_details`, `get_class_detail`, `get_course_description`, `estimate_walk_time`, `list_buildings`) plus the `parse-degree-audit-script` resource for the DAR. All schedule data is the public Schedule of Classes — unofficial and subject to registrar change.
 
 **Create a todo for each step below and work them in order.** Steps 2 and 3 may be asked in one message; nothing else merges.
 
@@ -30,7 +30,7 @@ Request a Degree Audit Report with these exact instructions to the student:
 3. Press **Ctrl+S** (Cmd+S on Mac) in your browser and save it as an HTML file (single file or complete webpage).
 4. Tell me the saved file's path (or drag the file into the chat).
 
-Parse it with `parse_degree_audit` (use `status_filter: "unfulfilled"` first, then widen as needed). If the student can't or won't provide a DAR, ask for course history plus remaining requirements in any form (pasted transcript, typed list) before continuing.
+Parsing the DAR is a **resource**, not a tool call — the saved HTML lives on the student's machine, not on the MCP server, so read the `parse-degree-audit-script` resource (`ucla-soc://scripts/parse-degree-audit.cjs`), save its text to a local `.cjs` file, and run it yourself against the saved audit file: `node parse-degree-audit.cjs <path-to-audit.html> unfulfilled` (widen the `status_filter` argument — `all` | `unfulfilled` | `in_progress` | `complete` — as needed). If the student can't or won't provide a DAR, ask for course history plus remaining requirements in any form (pasted transcript, typed list) before continuing.
 
 **Reconcile with Step 2:** if the audit contradicts what the student said — different major/program than they described, a "needed" course already satisfied, a graduation timeline that doesn't fit their stated plans — stop and clarify with the student before proceeding.
 
@@ -64,7 +64,7 @@ Only after the student agrees on a plan. **REQUIRED: follow [schedule-template.m
 | Sections, seats, times, locations | `get_course_details` |
 | Final exam, enforced requisites, notes | `get_class_detail` |
 | Catalog description + requisite text | `get_course_description` |
-| Degree audit parsing | `parse_degree_audit` |
+| Degree audit parsing | `parse-degree-audit-script` resource (run the script yourself) |
 | Walking time between buildings | `estimate_walk_time` |
 | Look up campus building names | `list_buildings` |
 

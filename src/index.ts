@@ -5,10 +5,11 @@
  */
 
 import { readFile } from "node:fs/promises";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { parseDegreeAudit } from "./audit.js";
 import {
   BUILDINGS,
   LocationMatch,
@@ -59,8 +60,11 @@ const server = new McpServer(
       "enforced requisites, grading basis and class notes; get_course_description returns the " +
       "General Catalog description with its requisite sentences; estimate_walk_time (with " +
       "list_buildings) gives an offline walking-time estimate between two classroom buildings. " +
-      "parse_degree_audit is different: it reads a locally saved UCLA DARS degree audit HTML " +
-      "file and returns requirement completion status, applied courses, and remaining needs.",
+      "For a UCLA DARS degree audit, read the 'parse-degree-audit-script' resource: it hands you " +
+      "a self-contained Node.js script, not a tool call, because the saved audit HTML lives " +
+      "wherever the caller has it (a local file, a dragged-in upload) rather than on this server. " +
+      "Save the script and run it yourself against that file to get requirement completion " +
+      "status, applied courses, and remaining needs as JSON.",
   }
 );
 
@@ -496,68 +500,50 @@ server.registerTool(
   }
 );
 
-server.registerTool(
-  "parse_degree_audit",
+/**
+ * The DARS audit HTML lives wherever the caller has it, not on this server, so parsing
+ * is handed over as a script to run rather than a tool call that would need the file
+ * shipped to the server first.
+ */
+// esbuild's CJS output (dist/bundle.cjs) defines __dirname; import.meta.url is empty
+// there instead. tsc's ESM output (dist/index.js) has the opposite: no __dirname, but
+// a working import.meta.url. Either way the sibling script lives next to this module.
+declare const __dirname: string | undefined;
+const MODULE_DIR =
+  typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
+const PARSE_DEGREE_AUDIT_SCRIPT_PATH = `${MODULE_DIR}/parse-degree-audit.cjs`;
+
+server.registerResource(
+  "parse-degree-audit-script",
+  "ucla-soc://scripts/parse-degree-audit.cjs",
   {
-    title: "Parse a saved UCLA degree audit (DARS)",
+    title: "DAR parsing script (UCLA DARS degree audit)",
     description:
-      "Deterministically parse a UCLA Degree Audit Report (DARS) that was saved from " +
-      "dars.ucla.edu as an HTML file ('Audit Results' tab -> browser 'Save page as'). " +
-      "Returns the overall completion status, student/admit info, unit & GPA breakdown " +
-      "(completed / in-progress / unfulfilled units per GPA category), and every " +
-      "requirement with its subrequirements: status (complete / unfulfilled / in_progress / " +
-      "informational), courses applied (term, course, units, grade), what is still NEEDED " +
-      "(course/unit counts), and SELECT FROM / NOT FROM course lists. " +
-      "Use status_filter to narrow to just unfulfilled or in-progress requirements.",
-    inputSchema: {
-      file_path: z
-        .string()
-        .describe(
-          "Absolute path to the saved DARS audit HTML file, e.g. " +
-            "\"C:\\\\Users\\\\me\\\\Documents\\\\My Audit - Audit Results Tab.html\"."
-        ),
-      status_filter: z
-        .enum(["all", "unfulfilled", "in_progress", "complete"])
-        .default("all")
-        .describe(
-          "Only include requirements with this status ('all' = everything, including " +
-            "informational blocks). Header and unit/GPA summary are always returned."
-        ),
-    },
-    annotations: { readOnlyHint: true, openWorldHint: false },
+      "A self-contained Node.js script (dependencies bundled in, no npm install needed) that " +
+      "deterministically parses a UCLA Degree Audit Report (DARS) saved from dars.ucla.edu as " +
+      "an HTML file ('Audit Results' tab -> browser 'Save page as'). Save this resource's text " +
+      "to a file, e.g. parse-degree-audit.cjs, then run: " +
+      "`node parse-degree-audit.cjs <path-to-audit.html> [status_filter]` where status_filter " +
+      "is one of all (default) | unfulfilled | in_progress | complete. Prints JSON to stdout: " +
+      "overall completion status, student/admit info, unit & GPA breakdown (completed / " +
+      "in-progress / unfulfilled units per GPA category), and every requirement with its " +
+      "subrequirements: status, courses applied (term, course, units, grade), what is still " +
+      "NEEDED (course/unit counts), and SELECT FROM / NOT FROM course lists.",
+    mimeType: "application/javascript",
   },
-  async ({ file_path, status_filter }) => {
+  async (uri) => {
+    let script: string;
     try {
-      let html: string;
-      try {
-        html = await readFile(file_path, "utf8");
-      } catch (err) {
-        return errorResult(
-          new Error(
-            `Could not read "${file_path}": ${err instanceof Error ? err.message : String(err)}. ` +
-              "Pass the absolute path to a saved DARS audit HTML file."
-          )
-        );
-      }
-      const audit = parseDegreeAudit(html);
-      const requirements =
-        status_filter === "all"
-          ? audit.requirements
-          : audit.requirements.filter((r) => r.status === status_filter);
-      return jsonResult({
-        source_file: file_path,
-        status_filter,
-        overall_status: audit.overall_status,
-        student_info: audit.student_info,
-        degree_programs: audit.degree_programs.length ? audit.degree_programs : undefined,
-        unit_gpa_summary: audit.unit_gpa_summary,
-        requirement_count: audit.requirements.length,
-        requirements_shown: requirements.length,
-        requirements,
-      });
+      script = await readFile(PARSE_DEGREE_AUDIT_SCRIPT_PATH, "utf8");
     } catch (err) {
-      return errorResult(err);
+      throw new Error(
+        `DAR parsing script not found at ${PARSE_DEGREE_AUDIT_SCRIPT_PATH} (run \`npm run build\` ` +
+          `to generate it): ${err instanceof Error ? err.message : String(err)}`
+      );
     }
+    return {
+      contents: [{ uri: uri.href, mimeType: "application/javascript", text: script }],
+    };
   }
 );
 
